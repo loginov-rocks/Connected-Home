@@ -1,2 +1,3 @@
-# NodeMCU-Arduino-PlatformIO
-Quick start with NodeMCU v3 (ESP8266), Arduino ecosystem and PlatformIO IDE
+# MQTT Home Monitor
+
+Started from [NodeMCU-Arduino-Platform](https://github.com/loginov-rocks/NodeMCU-Arduino-PlatformIO).
