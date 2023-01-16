@@ -9,9 +9,10 @@
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
 
-// AM2320
+// DHT11
 #include <Adafruit_Sensor.h>
-#include <Adafruit_AM2320.h>
+#include <DHT.h>
+#include <DHT_U.h>
 
 // Project headers
 #include "Config.h"
@@ -19,12 +20,10 @@
 WiFiClientSecure client;
 Adafruit_MQTT_Client mqttClient(&client, ADAFRUIT_IO_SERVER, ADAFRUIT_IO_PORT, ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY);
 
-static const char *fingerprint PROGMEM = "18 C0 C2 3D BE DD 81 37 73 40 E7 E4 36 61 CB 0A DF 96 AD 25";
-
 Adafruit_MQTT_Publish temperatureFeed = Adafruit_MQTT_Publish(&mqttClient, MQTT_TEMPERATURE_FEED);
 Adafruit_MQTT_Publish humidityFeed = Adafruit_MQTT_Publish(&mqttClient, MQTT_HUMIDITY_FEED);
 
-Adafruit_AM2320 am2320 = Adafruit_AM2320();
+DHT_Unified dht(D4, DHT11);
 
 void keepMqttClient();
 
@@ -39,47 +38,62 @@ void setup()
   Serial.println(F("Wi-Fi connection established"));
 
   // check the fingerprint of io.adafruit.com's SSL cert
-  client.setFingerprint(fingerprint);
+  client.setFingerprint(ADAFRUIT_IO_FINGERPRINT);
 
-  // AM2320 setup.
-  Serial.println(F("Setting up AM2320 sensor..."));
-  am2320.begin();
-  Serial.println(F("AM2320 sensor set up"));
+  // DHT11 setup.
+  Serial.println(F("Setting up DHT11 sensor..."));
+  dht.begin();
+  Serial.println(F("DHT11 sensor set up"));
 }
 
 void loop()
 {
   keepMqttClient();
 
-  float temperature = am2320.readTemperature();
-  float humidity = am2320.readHumidity();
+  sensors_event_t event;
 
-  // Publish temperature value.
-  Serial.print(F("Sending temperature "));
-  Serial.print(temperature);
-  Serial.print(F("... "));
-
-  if (temperatureFeed.publish(temperature))
+  dht.temperature().getEvent(&event);
+  if (isnan(event.temperature))
   {
-    Serial.println(F("sent"));
+    Serial.println(F("Error reading temperature!"));
   }
   else
   {
-    Serial.println(F("failed"));
+    // Publish temperature value.
+    Serial.print(F("Sending temperature "));
+    Serial.print(event.temperature);
+    Serial.print(F("... "));
+
+    if (temperatureFeed.publish(event.temperature))
+    {
+      Serial.println(F("sent"));
+    }
+    else
+    {
+      Serial.println(F("failed"));
+    }
   }
 
-  // Publish humidity value.
-  Serial.print(F("Sending humidity "));
-  Serial.print(humidity);
-  Serial.print(F("... "));
-
-  if (humidityFeed.publish(humidity))
+  dht.humidity().getEvent(&event);
+  if (isnan(event.relative_humidity))
   {
-    Serial.println(F("sent"));
+    Serial.println(F("Error reading humidity!"));
   }
   else
   {
-    Serial.println(F("failed"));
+    // Publish humidity value.
+    Serial.print(F("Sending humidity "));
+    Serial.print(event.relative_humidity);
+    Serial.print(F("... "));
+
+    if (humidityFeed.publish(event.relative_humidity))
+    {
+      Serial.println(F("sent"));
+    }
+    else
+    {
+      Serial.println(F("failed"));
+    }
   }
 
   delay(LOOP_DELAY);
