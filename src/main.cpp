@@ -1,9 +1,8 @@
 #include <Arduino.h>
+#include <SPI.h>
 
 // Wi-Fi
 #include <ESP8266WiFi.h>
-#include <DNSServer.h>
-#include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
 // Adafruit MQTT
@@ -19,6 +18,8 @@
 
 WiFiClientSecure client;
 Adafruit_MQTT_Client mqttClient(&client, ADAFRUIT_IO_SERVER, ADAFRUIT_IO_PORT, ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY);
+
+static const char *fingerprint PROGMEM = "18 C0 C2 3D BE DD 81 37 73 40 E7 E4 36 61 CB 0A DF 96 AD 25";
 
 Adafruit_MQTT_Publish temperatureFeed = Adafruit_MQTT_Publish(&mqttClient, MQTT_TEMPERATURE_FEED);
 Adafruit_MQTT_Publish humidityFeed = Adafruit_MQTT_Publish(&mqttClient, MQTT_HUMIDITY_FEED);
@@ -36,6 +37,9 @@ void setup()
   WiFiManager wifiManager;
   wifiManager.autoConnect(AUTOCONNECT_SSID, AUTOCONNECT_PASSWORD);
   Serial.println(F("Wi-Fi connection established"));
+
+  // check the fingerprint of io.adafruit.com's SSL cert
+  client.setFingerprint(fingerprint);
 
   // AM2320 setup.
   Serial.println(F("Setting up AM2320 sensor..."));
