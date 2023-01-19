@@ -1,13 +1,11 @@
 #include <Arduino.h>
-#include <SPI.h>
+#include <ArduinoJson.h>
 
 // Wi-Fi
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
 
-// Adafruit MQTT
-#include <Adafruit_MQTT.h>
-#include <Adafruit_MQTT_Client.h>
+#include <AwsIotWiFiClient.h>
 
 // DHT11
 #include <Adafruit_Sensor.h>
@@ -16,19 +14,40 @@
 
 // Project headers
 #include "Config.h"
+#include "Secrets.h"
 
-WiFiClientSecure client;
-Adafruit_MQTT_Client mqttClient(&client, ADAFRUIT_IO_SERVER, ADAFRUIT_IO_PORT, ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY);
+AwsIotWiFiClient awsIotWiFiClient;
 
-Adafruit_MQTT_Publish temperatureFeed = Adafruit_MQTT_Publish(&mqttClient, MQTT_TEMPERATURE_FEED);
-Adafruit_MQTT_Publish humidityFeed = Adafruit_MQTT_Publish(&mqttClient, MQTT_HUMIDITY_FEED);
+BearSSL::X509List trustAnchorCertificate(rootCaCertificate);
+BearSSL::X509List clientCertificate(deviceCertificate);
+BearSSL::PrivateKey clientPrivateKey(privateKeyFile);
 
 DHT_Unified dht(D4, DHT11);
 
-void keepMqttClient();
+void receiveMessage(char *topic, byte *payload, unsigned int length)
+{
+  Serial.println("Some message received");
+}
+
+void setupAwsIotWiFiClient()
+{
+  Serial.println("Setup AWS IoT Wi-Fi Client...");
+
+  awsIotWiFiClient.setDebugOutput(true)
+      .setCertificates(&trustAnchorCertificate, &clientCertificate, &clientPrivateKey)
+      .setEndpoint(endpoint)
+      .setReceiveMessageCallback(receiveMessage)
+      .setClientId(clientId)
+      .setSubscribeTopicFilter(subscribeTopicFilter)
+      .connect();
+
+  Serial.println("AWS IoT Wi-Fi Client setup was successful!");
+}
 
 void setup()
 {
+  pinMode(LED_BUILTIN, OUTPUT);
+
   Serial.begin(SERIAL_BAUDRATE);
 
   // Wi-Fi connection setup.
@@ -37,8 +56,7 @@ void setup()
   wifiManager.autoConnect(AUTOCONNECT_SSID, AUTOCONNECT_PASSWORD);
   Serial.println(F("Wi-Fi connection established"));
 
-  // check the fingerprint of io.adafruit.com's SSL cert
-  client.setFingerprint(ADAFRUIT_IO_FINGERPRINT);
+  setupAwsIotWiFiClient();
 
   // DHT11 setup.
   Serial.println(F("Setting up DHT11 sensor..."));
@@ -48,7 +66,18 @@ void setup()
 
 void loop()
 {
-  keepMqttClient();
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  awsIotWiFiClient.loop();
+
+  // @see https://arduinojson.org/v6/how-to/determine-the-capacity-of-the-jsondocument/
+  DynamicJsonDocument json(1024);
+  json["millis"] = millis();
+
+  struct tm timeinfo;
+  time_t now = time(nullptr);
+  gmtime_r(&now, &timeinfo);
+  json["time"] = asctime(&timeinfo);
 
   sensors_event_t event;
 
@@ -59,19 +88,7 @@ void loop()
   }
   else
   {
-    // Publish temperature value.
-    Serial.print(F("Sending temperature "));
-    Serial.print(event.temperature);
-    Serial.print(F("... "));
-
-    if (temperatureFeed.publish(event.temperature))
-    {
-      Serial.println(F("sent"));
-    }
-    else
-    {
-      Serial.println(F("failed"));
-    }
+    json["temperature"] = event.temperature;
   }
 
   dht.humidity().getEvent(&event);
@@ -81,58 +98,17 @@ void loop()
   }
   else
   {
-    // Publish humidity value.
-    Serial.print(F("Sending humidity "));
-    Serial.print(event.relative_humidity);
-    Serial.print(F("... "));
-
-    if (humidityFeed.publish(event.relative_humidity))
-    {
-      Serial.println(F("sent"));
-    }
-    else
-    {
-      Serial.println(F("failed"));
-    }
+    json["humidity"] = event.relative_humidity;
   }
+
+  char message[1024];
+  serializeJson(json, message);
+
+  awsIotWiFiClient.publishMessage(publishTopicName, message);
+
+  Serial.println(message);
+
+  digitalWrite(LED_BUILTIN, LOW);
 
   delay(LOOP_DELAY);
-}
-
-void keepMqttClient()
-{
-  // Stop if already connected.
-  if (mqttClient.connected())
-  {
-    return;
-  }
-
-  Serial.println(F("Establishin MQTT connection... "));
-
-  int8_t errorCode;
-  uint8_t retries = MQTT_CONNECTION_RETRIES;
-
-  // Connect will return 0 if connected.
-  while ((errorCode = mqttClient.connect()) != 0)
-  {
-    Serial.println(mqttClient.connectErrorString(errorCode));
-
-    mqttClient.disconnect();
-    retries--;
-
-    if (retries == 0)
-    {
-      // Basically die and wait for WDT to reset the device.
-      while (1)
-        ;
-    }
-
-    Serial.print(F("Retrying in "));
-    Serial.print(MQTT_CONNECTION_DELAY);
-    Serial.println(F(" milliseconds..."));
-
-    delay(MQTT_CONNECTION_DELAY);
-  }
-
-  Serial.println(F("MQTT connection established"));
 }
