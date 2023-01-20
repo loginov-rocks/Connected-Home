@@ -1,14 +1,1 @@
-# macOS
 .DS_Store
-
-# PlatformIO
-.pio
-.pioenvs
-.piolibdeps
-.vscode/.browse.c_cpp.db*
-.vscode/c_cpp_properties.json
-.vscode/launch.json
-
-# Project
-src/Config.h
-src/Secrets.h

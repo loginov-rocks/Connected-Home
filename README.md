@@ -1,4 +1,4 @@
-# MQTT Home Monitor
+# Connected Home
 
 ## Requirements
 
