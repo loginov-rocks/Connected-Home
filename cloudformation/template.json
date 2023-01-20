@@ -1,1 +1,198 @@
-{}
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Outputs": {
+        "CognitoClientId": {
+            "Value": {
+                "Ref": "UserPoolClient"
+            }
+        },
+        "CognitoDomain": {
+            "Value": {
+                "Fn::Sub": "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+            }
+        },
+        "DomainName": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "Distribution",
+                    "DomainName"
+                ]
+            }
+        }
+    },
+    "Parameters": {
+        "CognitoDomainPrefix": {
+            "Default": "connected-home",
+            "Type": "String"
+        },
+        "WebAppAuthCallbackPath": {
+            "Default": "/auth/",
+            "Type": "String"
+        },
+        "WebAppIndexFile": {
+            "Default": "index.html",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "BucketOriginAccessIdentity": {
+            "Type": "AWS::CloudFront::CloudFrontOriginAccessIdentity",
+            "Properties": {
+                "CloudFrontOriginAccessIdentityConfig": {
+                    "Comment": {
+                        "Fn::Sub": "${AWS::StackName}-bucket-origin-access-identity"
+                    }
+                }
+            }
+        },
+        "Distribution": {
+            "Type": "AWS::CloudFront::Distribution",
+            "Properties": {
+                "DistributionConfig": {
+                    "CustomErrorResponses": [
+                        {
+                            "ErrorCode": 403,
+                            "ResponseCode": 200,
+                            "ResponsePagePath": {
+                                "Fn::Sub": "/${WebAppIndexFile}"
+                            }
+                        }
+                    ],
+                    "DefaultCacheBehavior": {
+                        "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                        "Compress": true,
+                        "TargetOriginId": "BucketOrigin",
+                        "ViewerProtocolPolicy": "redirect-to-https"
+                    },
+                    "DefaultRootObject": {
+                        "Ref": "WebAppIndexFile"
+                    },
+                    "Enabled": true,
+                    "HttpVersion": "http2",
+                    "Origins": [
+                        {
+                            "DomainName": {
+                                "Fn::Sub": "${Bucket}.s3.${AWS::Region}.amazonaws.com"
+                            },
+                            "Id": "BucketOrigin",
+                            "S3OriginConfig": {
+                                "OriginAccessIdentity": {
+                                    "Fn::Sub": "origin-access-identity/cloudfront/${BucketOriginAccessIdentity}"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "UserPool": {
+            "Type": "AWS::Cognito::UserPool",
+            "Properties": {
+                "AutoVerifiedAttributes": [
+                    "email"
+                ],
+                "UsernameAttributes": [
+                    "email"
+                ]
+            }
+        },
+        "UserPoolClient": {
+            "Type": "AWS::Cognito::UserPoolClient",
+            "Properties": {
+                "AllowedOAuthFlows": [
+                    "implicit"
+                ],
+                "AllowedOAuthFlowsUserPoolClient": true,
+                "AllowedOAuthScopes": [
+                    "email",
+                    "openid"
+                ],
+                "CallbackURLs": [
+                    {
+                        "Fn::Sub": [
+                            "https://${DomainName}${WebAppAuthCallbackPath}",
+                            {
+                                "DomainName": {
+                                    "Fn::GetAtt": [
+                                        "Distribution",
+                                        "DomainName"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "ExplicitAuthFlows": [
+                    "ALLOW_REFRESH_TOKEN_AUTH"
+                ],
+                "PreventUserExistenceErrors": "ENABLED",
+                "SupportedIdentityProviders": [
+                    "COGNITO"
+                ],
+                "UserPoolId": {
+                    "Ref": "UserPool"
+                }
+            }
+        },
+        "UserPoolDomain": {
+            "Type": "AWS::Cognito::UserPoolDomain",
+            "Properties": {
+                "Domain": {
+                    "Ref": "CognitoDomainPrefix"
+                },
+                "UserPoolId": {
+                    "Ref": "UserPool"
+                }
+            }
+        },
+        "Bucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Fn::Sub": "${AWS::StackName}-bucket"
+                },
+                "PublicAccessBlockConfiguration": {
+                    "BlockPublicAcls": true,
+                    "BlockPublicPolicy": true,
+                    "IgnorePublicAcls": true,
+                    "RestrictPublicBuckets": true
+                }
+            }
+        },
+        "BucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+                "Bucket": {
+                    "Ref": "Bucket"
+                },
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": "s3:GetObject",
+                            "Principal": {
+                                "AWS": {
+                                    "Fn::Sub": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${BucketOriginAccessIdentity}"
+                                }
+                            },
+                            "Effect": "Allow",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "${BucketArn}/*",
+                                    {
+                                        "BucketArn": {
+                                            "Fn::GetAtt": [
+                                                "Bucket",
+                                                "Arn"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
