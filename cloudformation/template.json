@@ -16,6 +16,11 @@
                 "Fn::Sub": "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
             }
         },
+        "DatabaseName": {
+            "Value": {
+                "Ref": "Database"
+            }
+        },
         "DomainName": {
             "Value": {
                 "Fn::GetAtt": [
@@ -32,6 +37,14 @@
         "IotSubscribeTopicFilter": {
             "Value": {
                 "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+            }
+        },
+        "TableName": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "Table",
+                    "Name"
+                ]
             }
         }
     },
@@ -55,6 +68,16 @@
             "Default": "topic",
             "Description": "IoT Topic Name",
             "Type": "String"
+        },
+        "MagneticStoreRetentionPeriodInDays": {
+            "Default": 7,
+            "Description": "Magnetic Store Retention Period (in days)",
+            "Type": "Number"
+        },
+        "MemoryStoreRetentionPeriodInHours": {
+            "Default": 24,
+            "Description": "Memory Store Retention Period (in hours)",
+            "Type": "Number"
         },
         "WebAppAuthCallbackPath": {
             "Default": "/auth/",
@@ -178,6 +201,55 @@
                 }
             }
         },
+        "TopicRuleRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "iot.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": "timestream:DescribeEndpoints",
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Action": "timestream:WriteRecords",
+                                    "Effect": "Allow",
+                                    "Resource": {
+                                        "Fn::Sub": [
+                                            "arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${Database}/table/${TableName}",
+                                            {
+                                                "TableName": {
+                                                    "Fn::GetAtt": [
+                                                        "Table",
+                                                        "Name"
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "PolicyName": "CustomPolicy"
+                    }
+                ]
+            }
+        },
         "IotPolicy": {
             "Type": "AWS::IoT::Policy",
             "Properties": {
@@ -267,6 +339,47 @@
                 }
             }
         },
+        "TopicRule": {
+            "Type": "AWS::IoT::TopicRule",
+            "Properties": {
+                "TopicRulePayload": {
+                    "Actions": [
+                        {
+                            "Timestream": {
+                                "DatabaseName": {
+                                    "Ref": "Database"
+                                },
+                                "Dimensions": [
+                                    {
+                                        "Name": "clientId",
+                                        "Value": "${clientId()}"
+                                    },
+                                    {
+                                        "Name": "sessionId",
+                                        "Value": "${sessionId}"
+                                    }
+                                ],
+                                "RoleArn": {
+                                    "Fn::GetAtt": [
+                                        "TopicRuleRole",
+                                        "Arn"
+                                    ]
+                                },
+                                "TableName": {
+                                    "Fn::GetAtt": [
+                                        "Table",
+                                        "Name"
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "Sql": {
+                        "Fn::Sub": "SELECT cast(humidity as Double) as humidity, cast(temperature as Double) as temperature FROM '${AWS::StackName}-${IotTopicName}'"
+                    }
+                }
+            }
+        },
         "Bucket": {
             "Type": "AWS::S3::Bucket",
             "Properties": {
@@ -313,6 +426,33 @@
                             }
                         }
                     ]
+                }
+            }
+        },
+        "Database": {
+            "Type": "AWS::Timestream::Database",
+            "Properties": {
+                "DatabaseName": {
+                    "Fn::Sub": "${AWS::StackName}-database"
+                }
+            }
+        },
+        "Table": {
+            "Type": "AWS::Timestream::Table",
+            "Properties": {
+                "DatabaseName": {
+                    "Ref": "Database"
+                },
+                "RetentionProperties": {
+                    "MagneticStoreRetentionPeriodInDays": {
+                        "Ref": "MagneticStoreRetentionPeriodInDays"
+                    },
+                    "MemoryStoreRetentionPeriodInHours": {
+                        "Ref": "MemoryStoreRetentionPeriodInHours"
+                    }
+                },
+                "TableName": {
+                    "Fn::Sub": "${AWS::StackName}-table"
                 }
             }
         }
