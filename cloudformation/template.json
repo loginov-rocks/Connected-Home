@@ -1,6 +1,11 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
     "Outputs": {
+        "IotClientId": {
+            "Value": {
+                "Ref": "Thing"
+            }
+        },
         "CognitoClientId": {
             "Value": {
                 "Ref": "UserPoolClient"
@@ -18,19 +23,47 @@
                     "DomainName"
                 ]
             }
+        },
+        "IotPublishTopicName": {
+            "Value": {
+                "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+            }
+        },
+        "IotSubscribeTopicFilter": {
+            "Value": {
+                "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+            }
         }
     },
     "Parameters": {
+        "IotCertificateId": {
+            "Default": "fac44699cb780bf4a82a15648d8eccf78c7b50e33bcb8bda9f0ee766e4def351",
+            "Description": "IoT Certificate ID",
+            "Type": "String"
+        },
         "CognitoDomainPrefix": {
             "Default": "connected-home",
+            "Description": "Cognito Domain Prefix",
+            "Type": "String"
+        },
+        "IotThingName": {
+            "Default": "thing",
+            "Description": "IoT Thing Name",
+            "Type": "String"
+        },
+        "IotTopicName": {
+            "Default": "topic",
+            "Description": "IoT Topic Name",
             "Type": "String"
         },
         "WebAppAuthCallbackPath": {
             "Default": "/auth/",
+            "Description": "Web App Auth Callback Path",
             "Type": "String"
         },
         "WebAppIndexFile": {
             "Default": "index.html",
+            "Description": "Web App Index File",
             "Type": "String"
         }
     },
@@ -142,6 +175,95 @@
                 },
                 "UserPoolId": {
                     "Ref": "UserPool"
+                }
+            }
+        },
+        "IotPolicy": {
+            "Type": "AWS::IoT::Policy",
+            "Properties": {
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "iot:Connect",
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/${Thing}"
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "iot:Subscribe",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/${TopicName}",
+                                    {
+                                        "TopicName": {
+                                            "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "iot:Publish",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/${TopicName}",
+                                    {
+                                        "TopicName": {
+                                            "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "iot:Receive",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/${TopicName}",
+                                    {
+                                        "TopicName": {
+                                            "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "PolicyPrincipalAttachment": {
+            "Type": "AWS::IoT::PolicyPrincipalAttachment",
+            "Properties": {
+                "PolicyName": {
+                    "Ref": "IotPolicy"
+                },
+                "Principal": {
+                    "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:cert/${IotCertificateId}"
+                }
+            }
+        },
+        "Thing": {
+            "Type": "AWS::IoT::Thing",
+            "Properties": {
+                "ThingName": {
+                    "Fn::Sub": "${AWS::StackName}-${IotThingName}"
+                }
+            }
+        },
+        "ThingPrincipalAttachment": {
+            "Type": "AWS::IoT::ThingPrincipalAttachment",
+            "Properties": {
+                "Principal": {
+                    "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:cert/${IotCertificateId}"
+                },
+                "ThingName": {
+                    "Ref": "Thing"
                 }
             }
         },
