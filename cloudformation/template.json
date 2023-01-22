@@ -188,6 +188,90 @@
                 }
             }
         },
+        "StatusFunctionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": "logs:CreateLogGroup",
+                                    "Effect": "Allow",
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                                    }
+                                },
+                                {
+                                    "Action": [
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": {
+                                        "Fn::Sub": [
+                                            "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*",
+                                            {
+                                                "FunctionName": {
+                                                    "Fn::Sub": "${AWS::StackName}-topic-function"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "PolicyName": "AWSLambdaBasicExecutionRole"
+                    },
+                    {
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": "timestream:DescribeEndpoints",
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Action": "timestream:Select",
+                                    "Effect": "Allow",
+                                    "Resource": {
+                                        "Fn::Sub": [
+                                            "arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${Database}/table/${TableName}",
+                                            {
+                                                "TableName": {
+                                                    "Fn::GetAtt": [
+                                                        "Table",
+                                                        "Name"
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "PolicyName": "CustomPolicy"
+                    }
+                ],
+                "RoleName": {
+                    "Fn::Sub": "${AWS::StackName}-status-function-role"
+                }
+            }
+        },
         "TopicFunctionRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
@@ -381,6 +465,41 @@
                         "Fn::Sub": "SELECT clientId() as clientId, * FROM '${AWS::StackName}-${IotTopicName}'"
                     }
                 }
+            }
+        },
+        "StatusFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Architectures": [
+                    "arm64"
+                ],
+                "Code": {
+                    "ZipFile": "exports.handler = async (event) => { console.log(event); };"
+                },
+                "Environment": {
+                    "Variables": {
+                        "DATABASE_NAME": {
+                            "Ref": "Database"
+                        },
+                        "TABLE_NAME": {
+                            "Fn::GetAtt": [
+                                "Table",
+                                "Name"
+                            ]
+                        }
+                    }
+                },
+                "FunctionName": {
+                    "Fn::Sub": "${AWS::StackName}-status-function"
+                },
+                "Handler": "index.handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "StatusFunctionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "nodejs18.x"
             }
         },
         "TopicFunction": {

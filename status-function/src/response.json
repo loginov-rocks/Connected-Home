@@ -1,0 +1,76 @@
+{
+    "$metadata": {
+        "httpStatusCode": 200,
+        "requestId": "Z2242GOXF7NOCIGLGPKU7VFFAI",
+        "attempts": 1,
+        "totalRetryDelay": 0
+    },
+    "ColumnInfo": [
+        {
+            "Name": "clientId",
+            "Type": {
+                "ScalarType": "VARCHAR"
+            }
+        },
+        {
+            "Name": "sessionId",
+            "Type": {
+                "ScalarType": "VARCHAR"
+            }
+        },
+        {
+            "Name": "measure_name",
+            "Type": {
+                "ScalarType": "VARCHAR"
+            }
+        },
+        {
+            "Name": "time",
+            "Type": {
+                "ScalarType": "TIMESTAMP"
+            }
+        },
+        {
+            "Name": "temperature",
+            "Type": {
+                "ScalarType": "DOUBLE"
+            }
+        },
+        {
+            "Name": "humidity",
+            "Type": {
+                "ScalarType": "DOUBLE"
+            }
+        }
+    ],
+    "QueryId": "AEBQEANJZ6SYHUQNRPPSF7H2S77YPGVRARNPGQIO534SDUA3UCRMDWKUYXKN77Y",
+    "QueryStatus": {
+        "CumulativeBytesMetered": 10000000,
+        "CumulativeBytesScanned": 143907,
+        "ProgressPercentage": 100
+    },
+    "Rows": [
+        {
+            "Data": [
+                {
+                    "ScalarValue": "connected-home-thing"
+                },
+                {
+                    "ScalarValue": "1-2-3-4"
+                },
+                {
+                    "ScalarValue": "sensors"
+                },
+                {
+                    "ScalarValue": "2023-01-22 03:17:26.000000000"
+                },
+                {
+                    "ScalarValue": "19.0"
+                },
+                {
+                    "ScalarValue": "65.0"
+                }
+            ]
+        }
+    ]
+}
