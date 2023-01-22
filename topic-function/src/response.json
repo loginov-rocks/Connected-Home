@@ -1,0 +1,13 @@
+{
+    "$metadata": {
+        "httpStatusCode": 200,
+        "requestId": "5VM6MJD2MS7AY7K3D35QW3QZGU",
+        "attempts": 1,
+        "totalRetryDelay": 0
+    },
+    "RecordsIngested": {
+        "MagneticStore": 0,
+        "MemoryStore": 1,
+        "Total": 1
+    }
+}

@@ -72,6 +72,8 @@ void loop()
 
   // @see https://arduinojson.org/v6/how-to/determine-the-capacity-of-the-jsondocument/
   DynamicJsonDocument json(1024);
+  // TODO: Generate UUID on setup.
+  json["sessionId"] = "1-2-3-4";
   json["millis"] = millis();
 
   struct tm timeinfo;

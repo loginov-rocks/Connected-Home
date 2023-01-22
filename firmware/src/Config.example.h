@@ -4,7 +4,7 @@
 #define SERIAL_BAUDRATE 115200
 #define LOOP_DELAY 5000
 
-#define AUTOCONNECT_SSID "MQTT-Home-Monitor"
+#define AUTOCONNECT_SSID "Connected-Home"
 #define AUTOCONNECT_PASSWORD "password"
 
 #endif

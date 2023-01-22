@@ -16,11 +16,6 @@
                 "Fn::Sub": "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
             }
         },
-        "DatabaseName": {
-            "Value": {
-                "Ref": "Database"
-            }
-        },
         "DomainName": {
             "Value": {
                 "Fn::GetAtt": [
@@ -37,14 +32,6 @@
         "IotSubscribeTopicFilter": {
             "Value": {
                 "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
-            }
-        },
-        "TableName": {
-            "Value": {
-                "Fn::GetAtt": [
-                    "Table",
-                    "Name"
-                ]
             }
         }
     },
@@ -201,7 +188,7 @@
                 }
             }
         },
-        "TopicRuleRole": {
+        "TopicFunctionRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
@@ -211,12 +198,44 @@
                             "Action": "sts:AssumeRole",
                             "Effect": "Allow",
                             "Principal": {
-                                "Service": "iot.amazonaws.com"
+                                "Service": "lambda.amazonaws.com"
                             }
                         }
                     ]
                 },
                 "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": "logs:CreateLogGroup",
+                                    "Effect": "Allow",
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                                    }
+                                },
+                                {
+                                    "Action": [
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": {
+                                        "Fn::Sub": [
+                                            "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*",
+                                            {
+                                                "FunctionName": {
+                                                    "Fn::Sub": "${AWS::StackName}-topic-function"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "PolicyName": "AWSLambdaBasicExecutionRole"
+                    },
                     {
                         "PolicyDocument": {
                             "Version": "2012-10-17",
@@ -247,7 +266,10 @@
                         },
                         "PolicyName": "CustomPolicy"
                     }
-                ]
+                ],
+                "RoleName": {
+                    "Fn::Sub": "${AWS::StackName}-topic-function-role"
+                }
             }
         },
         "IotPolicy": {
@@ -345,38 +367,70 @@
                 "TopicRulePayload": {
                     "Actions": [
                         {
-                            "Timestream": {
-                                "DatabaseName": {
-                                    "Ref": "Database"
-                                },
-                                "Dimensions": [
-                                    {
-                                        "Name": "clientId",
-                                        "Value": "${clientId()}"
-                                    },
-                                    {
-                                        "Name": "sessionId",
-                                        "Value": "${sessionId}"
-                                    }
-                                ],
-                                "RoleArn": {
+                            "Lambda": {
+                                "FunctionArn": {
                                     "Fn::GetAtt": [
-                                        "TopicRuleRole",
+                                        "TopicFunction",
                                         "Arn"
-                                    ]
-                                },
-                                "TableName": {
-                                    "Fn::GetAtt": [
-                                        "Table",
-                                        "Name"
                                     ]
                                 }
                             }
                         }
                     ],
                     "Sql": {
-                        "Fn::Sub": "SELECT cast(humidity as Double) as humidity, cast(temperature as Double) as temperature FROM '${AWS::StackName}-${IotTopicName}'"
+                        "Fn::Sub": "SELECT clientId() as clientId, * FROM '${AWS::StackName}-${IotTopicName}'"
                     }
+                }
+            }
+        },
+        "TopicFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Architectures": [
+                    "arm64"
+                ],
+                "Code": {
+                    "ZipFile": "exports.handler = async (event) => { console.log(event); };"
+                },
+                "Environment": {
+                    "Variables": {
+                        "DATABASE_NAME": {
+                            "Ref": "Database"
+                        },
+                        "TABLE_NAME": {
+                            "Fn::GetAtt": [
+                                "Table",
+                                "Name"
+                            ]
+                        }
+                    }
+                },
+                "FunctionName": {
+                    "Fn::Sub": "${AWS::StackName}-topic-function"
+                },
+                "Handler": "index.handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "TopicFunctionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "nodejs18.x"
+            }
+        },
+        "TopicFunctionPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": {
+                    "Ref": "TopicFunction"
+                },
+                "Principal": "iot.amazonaws.com",
+                "SourceArn": {
+                    "Fn::GetAtt": [
+                        "TopicRule",
+                        "Arn"
+                    ]
                 }
             }
         },
