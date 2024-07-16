@@ -1,0 +1,736 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Outputs": {
+    "ApiEndpoint": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Api",
+          "ApiEndpoint"
+        ]
+      }
+    },
+    "IotClientId": {
+      "Value": {
+        "Ref": "Thing"
+      }
+    },
+    "CognitoClientId": {
+      "Value": {
+        "Ref": "UserPoolClient"
+      }
+    },
+    "CognitoDomain": {
+      "Value": {
+        "Fn::Sub": "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+      }
+    },
+    "DomainName": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Distribution",
+          "DomainName"
+        ]
+      }
+    },
+    "IotPublishTopicName": {
+      "Value": {
+        "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+      }
+    },
+    "IotSubscribeTopicFilter": {
+      "Value": {
+        "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+      }
+    }
+  },
+  "Parameters": {
+    "IotCertificateId": {
+      "Default": "fac44699cb780bf4a82a15648d8eccf78c7b50e33bcb8bda9f0ee766e4def351",
+      "Description": "IoT Certificate ID",
+      "Type": "String"
+    },
+    "CognitoDomainPrefix": {
+      "Default": "connected-home",
+      "Description": "Cognito Domain Prefix",
+      "Type": "String"
+    },
+    "IotThingName": {
+      "Default": "thing",
+      "Description": "IoT Thing Name",
+      "Type": "String"
+    },
+    "IotTopicName": {
+      "Default": "topic",
+      "Description": "IoT Topic Name",
+      "Type": "String"
+    },
+    "MagneticStoreRetentionPeriodInDays": {
+      "Default": 7,
+      "Description": "Magnetic Store Retention Period (in days)",
+      "Type": "Number"
+    },
+    "MemoryStoreRetentionPeriodInHours": {
+      "Default": 24,
+      "Description": "Memory Store Retention Period (in hours)",
+      "Type": "Number"
+    },
+    "WebAppAuthCallbackPath": {
+      "Default": "/auth/",
+      "Description": "Web App Auth Callback Path",
+      "Type": "String"
+    },
+    "WebAppIndexFile": {
+      "Default": "index.html",
+      "Description": "Web App Index File",
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "Api": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-api"
+        },
+        "ProtocolType": "HTTP"
+      }
+    },
+    "Authorizer": {
+      "Type": "AWS::ApiGatewayV2::Authorizer",
+      "Properties": {
+        "ApiId": {
+          "Ref": "Api"
+        },
+        "AuthorizerType": "JWT",
+        "JwtConfiguration": {
+          "Audience": [
+            {
+              "Ref": "UserPoolClient"
+            }
+          ],
+          "Issuer": {
+            "Fn::Sub": "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+          }
+        },
+        "IdentitySource": [
+          "$request.header.Authorization"
+        ],
+        "Name": "JWT"
+      }
+    },
+    "StatusIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Properties": {
+        "ApiId": {
+          "Ref": "Api"
+        },
+        "IntegrationMethod": "POST",
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Fn::Sub": [
+            "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StatusFunctionArn}/invocations",
+            {
+              "StatusFunctionArn": {
+                "Fn::GetAtt": [
+                  "StatusFunction",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        },
+        "PayloadFormatVersion": "2.0"
+      }
+    },
+    "StatusRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "Api"
+        },
+        "AuthorizationType": "JWT",
+        "AuthorizerId": {
+          "Ref": "Authorizer"
+        },
+        "RouteKey": "GET /status",
+        "Target": {
+          "Fn::Sub": "integrations/${StatusIntegration}"
+        }
+      }
+    },
+    "Stage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Properties": {
+        "ApiId": {
+          "Ref": "Api"
+        },
+        "AutoDeploy": true,
+        "StageName": "$default"
+      }
+    },
+    "BucketOriginAccessIdentity": {
+      "Type": "AWS::CloudFront::CloudFrontOriginAccessIdentity",
+      "Properties": {
+        "CloudFrontOriginAccessIdentityConfig": {
+          "Comment": {
+            "Fn::Sub": "${AWS::StackName}-bucket-origin-access-identity"
+          }
+        }
+      }
+    },
+    "Distribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "CustomErrorResponses": [
+            {
+              "ErrorCode": 403,
+              "ResponseCode": 200,
+              "ResponsePagePath": {
+                "Fn::Sub": "/${WebAppIndexFile}"
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+            "Compress": true,
+            "TargetOriginId": "BucketOrigin",
+            "ViewerProtocolPolicy": "redirect-to-https"
+          },
+          "DefaultRootObject": {
+            "Ref": "WebAppIndexFile"
+          },
+          "Enabled": true,
+          "HttpVersion": "http2",
+          "Origins": [
+            {
+              "DomainName": {
+                "Fn::Sub": "${Bucket}.s3.${AWS::Region}.amazonaws.com"
+              },
+              "Id": "BucketOrigin",
+              "S3OriginConfig": {
+                "OriginAccessIdentity": {
+                  "Fn::Sub": "origin-access-identity/cloudfront/${BucketOriginAccessIdentity}"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "UserPool": {
+      "Type": "AWS::Cognito::UserPool",
+      "Properties": {
+        "AutoVerifiedAttributes": [
+          "email"
+        ],
+        "UsernameAttributes": [
+          "email"
+        ]
+      }
+    },
+    "UserPoolClient": {
+      "Type": "AWS::Cognito::UserPoolClient",
+      "Properties": {
+        "AllowedOAuthFlows": [
+          "implicit"
+        ],
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthScopes": [
+          "email",
+          "openid"
+        ],
+        "CallbackURLs": [
+          {
+            "Fn::Sub": [
+              "https://${DomainName}${WebAppAuthCallbackPath}",
+              {
+                "DomainName": {
+                  "Fn::GetAtt": [
+                    "Distribution",
+                    "DomainName"
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "ExplicitAuthFlows": [
+          "ALLOW_REFRESH_TOKEN_AUTH"
+        ],
+        "PreventUserExistenceErrors": "ENABLED",
+        "SupportedIdentityProviders": [
+          "COGNITO"
+        ],
+        "UserPoolId": {
+          "Ref": "UserPool"
+        }
+      }
+    },
+    "UserPoolDomain": {
+      "Type": "AWS::Cognito::UserPoolDomain",
+      "Properties": {
+        "Domain": {
+          "Ref": "CognitoDomainPrefix"
+        },
+        "UserPoolId": {
+          "Ref": "UserPool"
+        }
+      }
+    },
+    "StatusFunctionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": "logs:CreateLogGroup",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                  }
+                },
+                {
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Sub": [
+                      "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*",
+                      {
+                        "FunctionName": {
+                          "Fn::Sub": "${AWS::StackName}-topic-function"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "PolicyName": "AWSLambdaBasicExecutionRole"
+          },
+          {
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": "timestream:DescribeEndpoints",
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Action": "timestream:Select",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Sub": [
+                      "arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${Database}/table/${TableName}",
+                      {
+                        "TableName": {
+                          "Fn::GetAtt": [
+                            "Table",
+                            "Name"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "PolicyName": "CustomPolicy"
+          }
+        ],
+        "RoleName": {
+          "Fn::Sub": "${AWS::StackName}-status-function-role"
+        }
+      }
+    },
+    "TopicFunctionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": "logs:CreateLogGroup",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+                  }
+                },
+                {
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Sub": [
+                      "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*",
+                      {
+                        "FunctionName": {
+                          "Fn::Sub": "${AWS::StackName}-topic-function"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "PolicyName": "AWSLambdaBasicExecutionRole"
+          },
+          {
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": "timestream:DescribeEndpoints",
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Action": "timestream:WriteRecords",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Sub": [
+                      "arn:aws:timestream:${AWS::Region}:${AWS::AccountId}:database/${Database}/table/${TableName}",
+                      {
+                        "TableName": {
+                          "Fn::GetAtt": [
+                            "Table",
+                            "Name"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "PolicyName": "CustomPolicy"
+          }
+        ],
+        "RoleName": {
+          "Fn::Sub": "${AWS::StackName}-topic-function-role"
+        }
+      }
+    },
+    "IotPolicy": {
+      "Type": "AWS::IoT::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "iot:Connect",
+              "Resource": {
+                "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/${Thing}"
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": "iot:Subscribe",
+              "Resource": {
+                "Fn::Sub": [
+                  "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/${TopicName}",
+                  {
+                    "TopicName": {
+                      "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": "iot:Publish",
+              "Resource": {
+                "Fn::Sub": [
+                  "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/${TopicName}",
+                  {
+                    "TopicName": {
+                      "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": "iot:Receive",
+              "Resource": {
+                "Fn::Sub": [
+                  "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/${TopicName}",
+                  {
+                    "TopicName": {
+                      "Fn::Sub": "${AWS::StackName}-${IotTopicName}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "PolicyPrincipalAttachment": {
+      "Type": "AWS::IoT::PolicyPrincipalAttachment",
+      "Properties": {
+        "PolicyName": {
+          "Ref": "IotPolicy"
+        },
+        "Principal": {
+          "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:cert/${IotCertificateId}"
+        }
+      }
+    },
+    "Thing": {
+      "Type": "AWS::IoT::Thing",
+      "Properties": {
+        "ThingName": {
+          "Fn::Sub": "${AWS::StackName}-${IotThingName}"
+        }
+      }
+    },
+    "ThingPrincipalAttachment": {
+      "Type": "AWS::IoT::ThingPrincipalAttachment",
+      "Properties": {
+        "Principal": {
+          "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:cert/${IotCertificateId}"
+        },
+        "ThingName": {
+          "Ref": "Thing"
+        }
+      }
+    },
+    "TopicRule": {
+      "Type": "AWS::IoT::TopicRule",
+      "Properties": {
+        "TopicRulePayload": {
+          "Actions": [
+            {
+              "Lambda": {
+                "FunctionArn": {
+                  "Fn::GetAtt": [
+                    "TopicFunction",
+                    "Arn"
+                  ]
+                }
+              }
+            }
+          ],
+          "Sql": {
+            "Fn::Sub": "SELECT clientId() as clientId, * FROM '${AWS::StackName}-${IotTopicName}'"
+          }
+        }
+      }
+    },
+    "StatusFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Architectures": [
+          "arm64"
+        ],
+        "Code": {
+          "ZipFile": "exports.handler = async (event) => { console.log(event); };"
+        },
+        "Environment": {
+          "Variables": {
+            "DATABASE_NAME": {
+              "Ref": "Database"
+            },
+            "TABLE_NAME": {
+              "Fn::GetAtt": [
+                "Table",
+                "Name"
+              ]
+            }
+          }
+        },
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-status-function"
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "StatusFunctionRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs18.x"
+      }
+    },
+    "TopicFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Architectures": [
+          "arm64"
+        ],
+        "Code": {
+          "ZipFile": "exports.handler = async (event) => { console.log(event); };"
+        },
+        "Environment": {
+          "Variables": {
+            "DATABASE_NAME": {
+              "Ref": "Database"
+            },
+            "TABLE_NAME": {
+              "Fn::GetAtt": [
+                "Table",
+                "Name"
+              ]
+            }
+          }
+        },
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-topic-function"
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "TopicFunctionRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs18.x"
+      }
+    },
+    "ApiStatusFunctionPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "StatusFunction"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/status"
+        }
+      }
+    },
+    "IotTopicFunctionPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "TopicFunction"
+        },
+        "Principal": "iot.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "TopicRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "${AWS::StackName}-bucket"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      }
+    },
+    "BucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "Bucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "s3:GetObject",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${BucketOriginAccessIdentity}"
+                }
+              },
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Sub": [
+                  "${BucketArn}/*",
+                  {
+                    "BucketArn": {
+                      "Fn::GetAtt": [
+                        "Bucket",
+                        "Arn"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Database": {
+      "Type": "AWS::Timestream::Database",
+      "Properties": {
+        "DatabaseName": {
+          "Fn::Sub": "${AWS::StackName}-database"
+        }
+      }
+    },
+    "Table": {
+      "Type": "AWS::Timestream::Table",
+      "Properties": {
+        "DatabaseName": {
+          "Ref": "Database"
+        },
+        "RetentionProperties": {
+          "MagneticStoreRetentionPeriodInDays": {
+            "Ref": "MagneticStoreRetentionPeriodInDays"
+          },
+          "MemoryStoreRetentionPeriodInHours": {
+            "Ref": "MemoryStoreRetentionPeriodInHours"
+          }
+        },
+        "TableName": {
+          "Fn::Sub": "${AWS::StackName}-table"
+        }
+      }
+    }
+  }
+}
