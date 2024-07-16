@@ -1,6 +1,6 @@
 import { TimestreamQueryClient, QueryCommand } from '@aws-sdk/client-timestream-query';
 
-import { THING_NAME, TIMESTREAM_DATABASE_NAME, TIMESTREAM_TABLE_NAME } from './Constants.mjs';
+import { CLIENT_ID, TIMESTREAM_DATABASE_NAME, TIMESTREAM_TABLE_NAME } from './Constants.mjs';
 import { transformTimestreamQueryOutput } from './transformTimestreamQueryOutput.mjs';
 
 const timestreamQueryClient = new TimestreamQueryClient();
@@ -8,7 +8,7 @@ const timestreamQueryClient = new TimestreamQueryClient();
 export const handler = async (event) => {
   console.log('event', JSON.stringify(event));
 
-  const sqlQueryStart = `SELECT * FROM "${TIMESTREAM_DATABASE_NAME}"."${TIMESTREAM_TABLE_NAME}" WHERE "clientId" = '${THING_NAME}' AND "measure_name" = '`;
+  const sqlQueryStart = `SELECT * FROM "${TIMESTREAM_DATABASE_NAME}"."${TIMESTREAM_TABLE_NAME}" WHERE "clientId" = '${CLIENT_ID}' AND "measure_name" = '`;
   const sqlQueryEnd = '\' ORDER BY "time" DESC LIMIT 1';
 
   const queryHumidityCommand = new QueryCommand({
@@ -48,6 +48,9 @@ export const handler = async (event) => {
         time: temperatureRows[0].time,
       },
     }),
+    headers: {
+      'content-type': 'application/json',
+    },
     statusCode: 200,
   };
 };

@@ -41,7 +41,7 @@
     {
       "Data": [
         {
-          "ScalarValue": "aws-iot-wifi-client-thing"
+          "ScalarValue": "thing"
         },
         {
           "ScalarValue": "temperature"

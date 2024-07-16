@@ -1,1 +1,37 @@
-{}
+{
+  "version": "2.0",
+  "routeKey": "GET /",
+  "rawPath": "/",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "*/*",
+    "accept-encoding": "gzip, deflate, br",
+    "content-length": "0",
+    "host": "abc123.execute-api.us-east-1.amazonaws.com",
+    "postman-token": "4db90631-f48a-4182-a70f-112f63d081c8",
+    "user-agent": "PostmanRuntime/7.37.3",
+    "x-amzn-trace-id": "Root=1-66969f95-7c6b25f14d69f2d37d2ef92e",
+    "x-forwarded-for": "4.16.31.2",
+    "x-forwarded-port": "443",
+    "x-forwarded-proto": "https"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "abc123",
+    "domainName": "abc123.execute-api.us-east-1.amazonaws.com",
+    "domainPrefix": "abc123",
+    "http": {
+      "method": "GET",
+      "path": "/",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "4.16.31.2",
+      "userAgent": "PostmanRuntime/7.37.3"
+    },
+    "requestId": "bA3faiv0IAMEZIw=",
+    "routeKey": "GET /",
+    "stage": "$default",
+    "time": "16/Jul/2024:16:28:05 +0000",
+    "timeEpoch": 1721147285547
+  },
+  "isBase64Encoded": false
+}
