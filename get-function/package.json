@@ -1,0 +1,5 @@
+{
+  "peerDependencies": {
+    "@aws-sdk/client-timestream-query": "^3.0.0"
+  }
+}

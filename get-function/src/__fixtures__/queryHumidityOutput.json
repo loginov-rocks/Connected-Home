@@ -1,0 +1,58 @@
+{
+  "$metadata": {
+    "httpStatusCode": 200,
+    "requestId": "X7CSCQ4TFZMLISMH4NTUQQQIOQ",
+    "attempts": 1,
+    "totalRetryDelay": 0
+  },
+  "ColumnInfo": [
+    {
+      "Name": "clientId",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "measure_name",
+      "Type": {
+        "ScalarType": "VARCHAR"
+      }
+    },
+    {
+      "Name": "time",
+      "Type": {
+        "ScalarType": "TIMESTAMP"
+      }
+    },
+    {
+      "Name": "measure_value::double",
+      "Type": {
+        "ScalarType": "DOUBLE"
+      }
+    }
+  ],
+  "QueryId": "AEBQEANVVV2HVMIIAASFDA4YQP5UXJIT54BJ27QDKXC2V6M5ZXF3VROIYXUFWAA",
+  "QueryStatus": {
+    "CumulativeBytesMetered": 0,
+    "CumulativeBytesScanned": 11890,
+    "ProgressPercentage": 100
+  },
+  "Rows": [
+    {
+      "Data": [
+        {
+          "ScalarValue": "aws-iot-wifi-client-thing"
+        },
+        {
+          "ScalarValue": "humidity"
+        },
+        {
+          "ScalarValue": "2024-07-15 04:36:57.000000000"
+        },
+        {
+          "ScalarValue": "65.0"
+        }
+      ]
+    }
+  ]
+}

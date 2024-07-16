@@ -1,0 +1,54 @@
+openapi: 3.0.3
+
+info:
+  title: Connected Home
+  contact:
+    name: Danila Loginov
+    email: danila@loginov.rocks
+    url: https://loginov.rocks
+  version: 0.0.0
+  license:
+    name: MIT
+    url: https://github.com/loginov-rocks/Connected-Home/blob/main/LICENSE
+
+externalDocs:
+  description: GitHub
+  url: https://github.com/loginov-rocks/Connected-Home
+
+paths:
+  /:
+    get:
+      summary: Get Function
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  humidity:
+                    type: object
+                    properties:
+                      humidity:
+                        type: number
+                      time:
+                        type: string
+                    required:
+                      - humidity
+                      - time
+                  temperature:
+                    type: object
+                    properties:
+                      temperature:
+                        type: number
+                      time:
+                        type: string
+                    required:
+                      - temperature
+                      - time
+                required:
+                  - humidity
+                  - temperature
+        500:
+          description: Internal Server Error
