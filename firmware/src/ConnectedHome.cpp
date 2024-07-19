@@ -1,15 +1,16 @@
 #include "ConnectedHome.h"
 
 ConnectedHome::ConnectedHome(int ledPin, int dhtSensorPin)
-    : ledPin(ledPin),
+    : log(),
+      ledPin(ledPin),
       dhtSensor(dhtSensorPin, DHT11)
 {
-  //
+  this->log.setPrefix("[ConnectedHome]");
 }
 
-ConnectedHome &ConnectedHome::setLogLevel(LogLevel logLevel)
+ConnectedHome &ConnectedHome::setLogLevel(Log::Level level)
 {
-  this->logLevel = logLevel;
+  this->log.setLevel(level);
 
   return *this;
 }
@@ -23,16 +24,16 @@ ConnectedHome &ConnectedHome::setPublishMessageCallback(const std::function<void
 
 void ConnectedHome::setup()
 {
-  this->logln(LogLevel::INFO, "Setting up Connected Home...");
+  this->log.println("Setting up Connected Home...");
 
   pinMode(this->ledPin, OUTPUT);
 
-  this->logln(LogLevel::INFO, "Setting up DHT11 sensor...");
+  this->log.println("Setting up DHT11 sensor...");
 
   this->dhtSensor.begin();
 
-  this->logln(LogLevel::INFO, "DHT11 sensor setup was successful!");
-  this->logln(LogLevel::INFO, "Connected Home setup was successful!");
+  this->log.println("DHT11 sensor setup was successful!");
+  this->log.println("Connected Home setup was successful!");
 }
 
 void ConnectedHome::loop()
@@ -41,73 +42,21 @@ void ConnectedHome::loop()
 
   if (currentMillis >= this->previousMillis + this->interval)
   {
-    this->logln(LogLevel::INFO, "Executing task...");
+    this->log.println("Executing task...");
 
     digitalWrite(this->ledPin, HIGH);
 
     this->previousMillis = currentMillis;
 
-    this->log(LogLevel::INFO, "Current millis: ");
-    this->logln(LogLevel::INFO, currentMillis, false);
+    this->log.print("Current millis: ");
+    this->log.println(currentMillis);
 
     this->publishMessage();
 
     digitalWrite(this->ledPin, LOW);
 
-    this->logln(LogLevel::INFO, "Task successfully executed!");
+    this->log.println("Task successfully executed!");
   }
-}
-
-void ConnectedHome::log(LogLevel logLevel, const char *message)
-{
-  Serial.print("[ConnectedHome] ");
-  Serial.print(message);
-}
-
-void ConnectedHome::logln(LogLevel logLevel, const char *message)
-{
-  Serial.print("[ConnectedHome] ");
-  Serial.println(message);
-}
-
-void ConnectedHome::logln(LogLevel logLevel, const char *message, boolean prefix)
-{
-  if (prefix)
-  {
-    Serial.print("[ConnectedHome] ");
-  }
-
-  Serial.println(message);
-}
-
-void ConnectedHome::logln(LogLevel logLevel, unsigned long number, boolean prefix)
-{
-  if (prefix)
-  {
-    Serial.print("[ConnectedHome] ");
-  }
-
-  Serial.println(number);
-}
-
-void ConnectedHome::logln(LogLevel logLevel, float number, boolean prefix)
-{
-  if (prefix)
-  {
-    Serial.print("[ConnectedHome] ");
-  }
-
-  Serial.println(number);
-}
-
-void ConnectedHome::logln(LogLevel logLevel, time_t timestamp, boolean prefix)
-{
-  if (prefix)
-  {
-    Serial.print("[ConnectedHome] ");
-  }
-
-  Serial.println(timestamp);
 }
 
 void ConnectedHome::publishMessage()
@@ -119,42 +68,42 @@ void ConnectedHome::publishMessage()
   sensors_event_t event;
 
   // Humidity
-  this->logln(LogLevel::INFO, "Reading humidity...");
+  this->log.println("Reading humidity...");
 
   this->dhtSensor.humidity().getEvent(&event);
   if (isnan(event.relative_humidity))
   {
-    this->logln(LogLevel::WARNING, "Error reading humidity!");
+    this->log.warnln("Error reading humidity!");
   }
   else
   {
     isDataAvailable = true;
     json["humidity"] = event.relative_humidity;
 
-    this->log(LogLevel::INFO, "Humidity: ");
-    this->logln(LogLevel::INFO, event.relative_humidity, false);
+    this->log.print("Humidity: ");
+    this->log.println(event.relative_humidity);
   }
 
   // Temperature
-  this->logln(LogLevel::INFO, "Reading temperature...");
+  this->log.println("Reading temperature...");
 
   this->dhtSensor.temperature().getEvent(&event);
   if (isnan(event.temperature))
   {
-    this->logln(LogLevel::WARNING, "Error reading temperature!");
+    this->log.warnln("Error reading temperature!");
   }
   else
   {
     isDataAvailable = true;
     json["temperature"] = event.temperature;
 
-    this->log(LogLevel::INFO, "Temperature: ");
-    this->logln(LogLevel::INFO, event.temperature, false);
+    this->log.print("Temperature: ");
+    this->log.println(event.temperature);
   }
 
   if (!isDataAvailable)
   {
-    this->logln(LogLevel::WARNING, "No data is available, skipping sending a message!");
+    this->log.warnln("No data is available, skipping sending a message!");
 
     return;
   }
@@ -163,17 +112,17 @@ void ConnectedHome::publishMessage()
   time_t now = time(nullptr);
   json["timestamp"] = now;
 
-  this->log(LogLevel::INFO, "Timestamp: ");
-  this->logln(LogLevel::INFO, now, false);
+  this->log.print("Timestamp: ");
+  this->log.println(now);
 
   char message[128];
   serializeJson(json, message);
 
-  this->log(LogLevel::INFO, "Message serialized: ");
-  this->logln(LogLevel::INFO, message, false);
-  this->logln(LogLevel::INFO, "Publishing message...");
+  this->log.print("Message serialized: ");
+  this->log.println(message);
+  this->log.println("Publishing message...");
 
   this->publishMessageCallback(message);
 
-  this->logln(LogLevel::INFO, "Message successfully published!");
+  this->log.println("Message successfully published!");
 }

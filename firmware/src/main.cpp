@@ -12,8 +12,8 @@
 #include "Secrets.h"
 
 const int dhtPin = D4;
-const char ssid[] = "MojoHookahLounge";
-const char password[] = "welovehookah";
+const char ssid[] = "ssid";
+const char password[] = "password";
 
 AwsIotWiFiClient awsIotWiFiClient;
 
@@ -79,7 +79,7 @@ void setupConnectedHome()
 {
   Serial.println("Setting up Connected Home...");
 
-  connectedHome.setLogLevel(LogLevel::INFO)
+  connectedHome.setLogLevel(Log::Level::LOG)
       .setPublishMessageCallback(publishMessage)
       .setup();
 
