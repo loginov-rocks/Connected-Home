@@ -1,23 +1,19 @@
-#include "Arduino.h"
+#include <Arduino.h>
 
-#include "ArduinoJson.h"
-#include "AwsIotWiFiClient.h"
-#include "ESP8266WiFi.h"
+#include <AwsIotWiFiClient.h>
+#include <ESP8266WiFi.h>
 
 // Uncomment the following to use the WiFiManager library.
-// #include "DNSServer.h"
-// #include "ESP8266WebServer.h"
-// #include "WiFiManager.h"
+// #include <DNSServer.h>
+// #include <ESP8266WebServer.h>
+// #include <WiFiManager.h>
 
-// DHT11
-#include "Adafruit_Sensor.h"
-#include "DHT.h"
-#include "DHT_U.h"
-
+#include "ConnectedHome.h"
 #include "Secrets.h"
 
-const char ssid[] = "SSID";
-const char password[] = "Password";
+const int dhtPin = D4;
+const char ssid[] = "MojoHookahLounge";
+const char password[] = "welovehookah";
 
 AwsIotWiFiClient awsIotWiFiClient;
 
@@ -25,10 +21,7 @@ BearSSL::X509List trustAnchorCertificate(rootCaCertificate);
 BearSSL::X509List clientCertificate(deviceCertificate);
 BearSSL::PrivateKey clientPrivateKey(privateKeyFile);
 
-DHT_Unified dht(D4, DHT11);
-
-unsigned long previousMillis = 0;
-const long interval = 10000;
+ConnectedHome connectedHome(LED_BUILTIN, dhtPin);
 
 void connectWiFi()
 {
@@ -50,51 +43,17 @@ void connectWiFi()
   Serial.println("Wi-Fi connection was successful!");
 }
 
-void publishMessage()
+void publishMessage(const char *message)
 {
-  Serial.println("Publishing message...");
-
-  // @see https://arduinojson.org/v6/how-to/determine-the-capacity-of-the-jsondocument/
-  DynamicJsonDocument json(128);
-
-  sensors_event_t event;
-
-  // Humidity
-  dht.humidity().getEvent(&event);
-  if (isnan(event.relative_humidity))
-  {
-    Serial.println("Error reading humidity!");
-  }
-  else
-  {
-    json["humidity"] = event.relative_humidity;
-  }
-
-  // Temperature
-  dht.temperature().getEvent(&event);
-  if (isnan(event.temperature))
-  {
-    Serial.println("Error reading temperature!");
-  }
-  else
-  {
-    json["temperature"] = event.temperature;
-  }
-
-  // Timestamp
-  time_t now = time(nullptr);
-  json["timestamp"] = now;
-
-  char message[128];
-  serializeJson(json, message);
+  Serial.print("Publishing message: ");
+  Serial.println(message);
 
   awsIotWiFiClient.publishMessage(publishTopicName, message);
 
-  Serial.print("Message successfully published: ");
-  Serial.println(message);
+  Serial.println("Message successfully published!");
 }
 
-void receiveMessage(char *topic, byte *payload, unsigned int length)
+void receiveMessage(const char *topic, const byte *payload, const unsigned int length)
 {
   Serial.print("Message received: ");
   Serial.write(payload, length);
@@ -116,10 +75,19 @@ void setupAwsIotWiFiClient()
   Serial.println("AWS IoT Wi-Fi Client setup was successful!");
 }
 
+void setupConnectedHome()
+{
+  Serial.println("Setting up Connected Home...");
+
+  connectedHome.setLogLevel(LogLevel::INFO)
+      .setPublishMessageCallback(publishMessage)
+      .setup();
+
+  Serial.println("Connected Home setup was successful!");
+}
+
 void setup()
 {
-  pinMode(LED_BUILTIN, OUTPUT);
-
   Serial.begin(9600);
   Serial.println("Setup...");
 
@@ -130,28 +98,13 @@ void setup()
   // Serial.println("Connected!");
 
   setupAwsIotWiFiClient();
-
-  // DHT11
-  Serial.println("Setting up DHT11 sensor...");
-  dht.begin();
-  Serial.println("DHT11 sensor setup was successful!");
+  setupConnectedHome();
 
   Serial.println("Setup was successful!");
 }
 
 void loop()
 {
-  unsigned long currentMillis = millis();
-
-  if (currentMillis > previousMillis + interval)
-  {
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    previousMillis = currentMillis;
-    publishMessage();
-
-    digitalWrite(LED_BUILTIN, LOW);
-  }
-
+  connectedHome.loop();
   awsIotWiFiClient.loop();
 }

@@ -1,7 +1,7 @@
-#ifndef SECRETS_H_INCLUDED
-#define SECRETS_H_INCLUDED
+#ifndef SECRETS_H
+#define SECRETS_H
 
-#include "pgmspace.h"
+#include <pgmspace.h>
 
 const char endpoint[] = "endpoint.iot.us-east-1.amazonaws.com";
 const char clientId[] = "client";
